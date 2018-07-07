@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <pthread.h>
+#include <raft.h>
 
 using namespace std;
 enum NodeRole{
@@ -46,6 +47,7 @@ Node::Node() {
     //last_applied_ = 0;
 }
 
+std::map<std::string, std::string> g_config;
 string g_ip;
 uint32_t g_port;
 Node g_node;
@@ -248,8 +250,29 @@ err_t:
     exit(1);
 }
 
+void get_listen_node(string &ip, uint32_t &port){
+    std::map<std::string, std::string>::iterator it;
+    it = g_config.find("listen_node");
+    if (it == g_config.end()) {
+        ip = "127.0.0.1";
+        port = 6001;
+        return;
+    }
+
+    size_t pos = it->second.find(":");
+    assert(pos != string::npos && pos >= strlen("0.0.0.0"));
+
+    ip = it->second.substr(0, pos);
+    port = atoi(it->second.substr(pos+1).c_str());
+    assert(port > 0 && port < 65536);
+
+    return;
+}
+
+
 void* start_raft(void *unused) {
     int ret = 0;
+    get_listen_node(g_ip, g_port);
 
     int  listenfd;
     listenfd = socket_bind(g_ip.c_str(),g_port);
@@ -264,8 +287,10 @@ void* start_raft(void *unused) {
     return 0;
 }
 
-void init_raft() {
+void init_raft(std::map<std::string, std::string> &config) {
     int ret = 0;
+    g_config = config;
+
     pthread_t tid;
     ret = pthread_create(&tid, NULL, start_raft, NULL);
     if (ret != 0) {
