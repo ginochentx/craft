@@ -276,11 +276,11 @@ void* start_raft(void *unused) {
 
     int  listenfd;
     listenfd = socket_bind(g_ip.c_str(),g_port);
-    //listen(listenfd,5);
-    //if (ret != 0) {
-    //    perror("listen error: ");
-    //    exit(1);
-    //}
+    listen(listenfd,5);
+    if (ret != 0) {
+        perror("listen error: ");
+        exit(1);
+    }
 
     do_epoll(listenfd);
     
