@@ -148,6 +148,7 @@ static void do_read(int epollfd,int fd)
     if (nread == -1)
     {
         perror("read error:");
+        delete_event(epollfd,fd,EPOLLIN);
         goto err_t;
     }
     else if (nread == 0)
