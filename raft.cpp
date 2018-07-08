@@ -29,6 +29,7 @@ public:
     uint32_t current_term_;
     uint32_t vote_for_;
     uint32_t node_id_;
+    uint32_t votes_;
     //vector<string> log_;
 
     //uint32_t commit_index_;
@@ -116,7 +117,7 @@ static void handle_accpet(int epollfd,int listenfd)
     else
     {
         printf("accept a new client: %s:%d\n",inet_ntoa(cliaddr.sin_addr),cliaddr.sin_port);
-        add_event(epollfd,clifd,EPOLLIN|EPOLLOUT);
+        add_event(epollfd,clifd,EPOLLIN);
     }
 }
 
@@ -127,16 +128,40 @@ struct RequestVote {
     //uint32_t last_log_term;
 };
 
-struct RequestVoteRes {
-    uint32_t term_;
-    uint32_t vote_granted_; //1: means candidate recevied voted, else 0.
+struct ResponseVote {
+    uint32_t term;
+    uint32_t vote_granted; //1: means candidate recevied voted, else 0.
 };
 
 static void do_request_vote(const RequestVote* requestVote) {
+    ResponseVote responseVote;
+
+    if (requestVote->term < g_node.current_term_) {
+        responseVote.term = g_node.current_term_;
+        responseVote.vote_granted = 0;
+        return;
+    }
+
+    if (g_node.vote_for_ == 0xffffffff || 
+        (requestVote->term == g_node.current_term_&& g_node.vote_for_ == requestVote->candidate_id) ||
+        (requestVote->term > g_node.current_term_)) {
+        responseVote.term = requestVote->term;
+        responseVote.vote_granted = 1;
+        g_node.vote_for_ = requestVote->candidate_id;
+        return;
+    }
+
+    responseVote.term = requestVote->term;
+    responseVote.vote_granted = 0;
+
     return;
 }
 
-static void do_request_vote_res(const RequestVoteRes* requestVoteRes) {
+static void do_response_vote(const ResponseVote* responseVote) {
+    if (responseVote->vote_granted) g_node.votes_++;
+
+    g_node.current_term_= responseVote->term;
+
     return;
 }
 
@@ -161,8 +186,8 @@ static void do_read(int epollfd,int fd)
         do_request_vote((RequestVote*)(buf+1));
     }
     else if (buf[0] == 'R') {
-        assert(nread == sizeof(RequestVoteRes));
-        do_request_vote_res((RequestVoteRes*)(buf+1));
+        assert(nread == sizeof(ResponseVote));
+        do_response_vote((ResponseVote*)(buf+1));
     }
     else {
         perror("unkown package:");
